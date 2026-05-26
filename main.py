@@ -1,5 +1,4 @@
 import os
-
 import cv2 # My first time using this module, wish me luck!
 import pyttsx3
 import threading
@@ -42,6 +41,7 @@ alarm_thread_two = False # Check if alarm Thread is running
 
 face = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 side_face = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_profileface.xml")
+eye = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
 smile = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_smile.xml")
 
 camera = cv2.VideoCapture(0)
@@ -51,28 +51,46 @@ while True:
 
     faces = face.detectMultiScale(gray, 1.3, 5)
     for (x, y, w, h) in faces:
+        score = w * h
+        score = (score / 50000) * 100
+        score = min(max(score, 0), 100)
         cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        cv2.putText(frame, f"Confidence: {score:.1f}%", (x, y - 10),cv2.FONT_HERSHEY_SIMPLEX,0.7, (0, 255, 0), 2)
         roi_gray = gray[y:y + h, x:x + w]
         """
-        Had to check for smiles inside the face loop because before that,
-        Everytime it detected something that resembled a smile it would think human is close to the camera,
-        however by adding this inside the face loop, smile would only be detected if there is a human face.
+        Had to check for eyes inside the face loop because before that,
+        Everytime it detected something that resembled a eye it would think human is close to the camera,
+        however by adding this inside the face loop, eye would only be detected if there is a human face.
         """
+        eyes = eye.detectMultiScale(roi_gray, 1.7, 20)
+        for (sx, sy, sw, sh) in eyes:
+            cv2.rectangle(frame, (x + sx, y + sy), (x + sx + sw, y + sy + sh), (0, 0, 255), 2)
         smiles = smile.detectMultiScale(roi_gray, 1.7, 20)
         for (sx, sy, sw, sh) in smiles:
-            cv2.rectangle(frame, (x + sx, y + sy), (x + sx + sw, y + sy + sh), (0, 0, 255), 2)
+            cv2.rectangle(frame, (x + sx, y + sy), (x + sx + sw, y + sy + sh), (0, 55, 200), 2)
 
     side_faces = side_face.detectMultiScale(gray, 1.3, 5)
     for (x, y, w, h) in side_faces:
+        score = w * h
+        score = (score / 50000) * 100
+        score = min(max(score, 0), 100)
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(frame, f"Confidence: {score:.1f}%", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
     cv2.imshow("Camera", frame)
-    try: # smiles could be undefined, so I wrapped it in a try
-        if len(smiles) == 1 or len(smiles) > 1 and not len(faces) > 1: # Ok so I realized that if cv2 detects a smile that usually means the human is close to the camera so yea.
-            # Ok this is a mess but basically if smile is one or smile is over 1 BUT faces is only 1 then yea only say 1 human is close, cuz sometimes it thinks there's two humans close to the cam just because like hte face looks like there's two smiles
+    try: # eyes could be undefined, so I wrapped it in a try
+        if len(eyes) == 1 or len(eyes) > 1 and not len(faces) > 1: # Ok so I realized that if cv2 detects a eye that usually means the human is close to the camera so yea.
+            # Ok this is a mess but basically if eye is one or eye is over 1 BUT faces is only 1 then yea only say 1 human is close, cuz sometimes it thinks there's two humans close to the cam just because like hte face looks like there's two eye
             threading.Thread(target=play_alarm, args=("Human maybe close to the camera",), daemon=True).start()
+        elif len(eyes) > 1:
+            threading.Thread(target=play_alarm, args=(f"{len(eyes)} humans maybe close to the camera",), daemon=True).start()
+    except NameError:
+        pass
+    try: # smiles could be undefined, so I wrapped it in a try
+        if len(smiles) == 1 or len(smiles) > 1 and not len(faces) > 1:  # Ok its been demoted, now its not the only thing that tells if human is close, eyes just work better, i kept it cuz idk
+            threading.Thread(target=play_alarm, args=("Human is smiling",), daemon=True).start()
         elif len(smiles) > 1:
-            threading.Thread(target=play_alarm, args=(f"{len(smiles)} humans maybe close to the camera",), daemon=True).start()
+            threading.Thread(target=play_alarm, args=(f"{len(smiles)} humans are smiling",), daemon=True).start()
     except NameError:
         pass
 
